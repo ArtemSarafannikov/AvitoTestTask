@@ -68,3 +68,26 @@ func (r *PostgresRepository) CreateUser(ctx context.Context, user *model.User) (
 	}
 	return user, nil
 }
+
+func (r *PostgresRepository) TransferCoin(ctx context.Context, fromUserId, toUserId string, amount int) error {
+	const op = "postgres.TransferCoin"
+	const query = `UPDATE users
+					SET balance = balance - $1
+					WHERE id = $2;
+
+					UPDATE users
+					SET balance = balance + $1
+					WHERE id = $3;
+
+					INSERT INTO transactions(from_user_id, to_user_id, amount)
+					VALUES ($2, $3, $1);`
+
+	stmt, err := r.db.PrepareContext(ctx, query)
+	if err != nil {
+		return fmt.Errorf("%s: %w", op, err)
+	}
+	if _, err = stmt.ExecContext(ctx, amount, fromUserId, toUserId); err != nil {
+		return fmt.Errorf("%s: %w", op, err)
+	}
+	return nil
+}

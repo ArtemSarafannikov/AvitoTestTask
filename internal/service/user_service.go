@@ -32,8 +32,10 @@ func (u *UserService) Login(ctx context.Context, username, password string) (str
 
 	if notFoundErr {
 		// If user not exists
-		user.Username = username
-		user.Password = password
+		user = &model.User{
+			Username: username,
+			Password: password,
+		}
 		err = u.Register(ctx, user)
 		if err != nil {
 			return "", fmt.Errorf("%s: %w", op, err)
@@ -44,8 +46,11 @@ func (u *UserService) Login(ctx context.Context, username, password string) (str
 			return "", cstErrors.BadCredentialError
 		}
 	}
-	// TODO: get jwt
-	return "success", nil
+	jwt, err := utils.GenerateJWT(user.Id)
+	if err != nil {
+		return "", fmt.Errorf("%s: %w", op, err)
+	}
+	return jwt, nil
 }
 
 func (u *UserService) Register(ctx context.Context, user *model.User) error {

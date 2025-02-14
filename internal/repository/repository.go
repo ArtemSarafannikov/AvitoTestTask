@@ -12,6 +12,7 @@ type UserRepository interface {
 }
 
 type TransactionRepository interface {
+	TransferCoin(ctx context.Context, fromUserId, toUserId string, amount int) error
 }
 
 type MerchRepository interface {
