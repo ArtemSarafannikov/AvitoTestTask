@@ -7,6 +7,7 @@ import (
 	echojwt "github.com/labstack/echo-jwt/v4"
 	"github.com/labstack/echo/v4"
 	"net/http"
+	"strings"
 )
 
 func AuthMiddleware(next echo.HandlerFunc) echo.HandlerFunc {
@@ -44,6 +45,14 @@ func JWTMiddleware(secret string) echo.MiddlewareFunc {
 		TokenLookup: "header:Authorization",
 		NewClaimsFunc: func(c echo.Context) jwt.Claims {
 			return jwt.MapClaims{}
+		},
+		ParseTokenFunc: func(c echo.Context, auth string) (interface{}, error) {
+			if strings.HasPrefix(auth, "Bearer ") {
+				auth = strings.TrimPrefix(auth, "Bearer ")
+			}
+			return jwt.Parse(auth, func(token *jwt.Token) (interface{}, error) {
+				return []byte(secret), nil
+			})
 		},
 	})
 }
