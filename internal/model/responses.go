@@ -1,9 +1,9 @@
 package model
 
 type InfoResponse struct {
-	Balance     int             `json:"coins"`
-	Inventory   []InfoInventory `json:"inventory"`
-	CoinHistory []CoinHistory   `json:"coinHistory"`
+	Balance     int              `json:"coins"`
+	Inventory   []*InfoInventory `json:"inventory"`
+	CoinHistory *CoinHistory     `json:"coinHistory"`
 }
 
 type AuthResponse struct {
@@ -20,8 +20,8 @@ type InfoInventory struct {
 }
 
 type CoinHistory struct {
-	Received []ReceivedCoin `json:"received"`
-	Sent     []SentCoin     `json:"sent"`
+	Received []*ReceivedCoin `json:"received"`
+	Sent     []*SentCoin     `json:"sent"`
 }
 
 type ReceivedCoin struct {

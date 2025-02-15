@@ -6,15 +6,21 @@ import (
 	"fmt"
 	cstErrors "github.com/ArtemSarafannikov/AvitoTestTask/internal/error"
 	"github.com/ArtemSarafannikov/AvitoTestTask/internal/model"
-	"github.com/ArtemSarafannikov/AvitoTestTask/internal/repository"
 	"github.com/ArtemSarafannikov/AvitoTestTask/internal/utils"
 )
 
-type UserService struct {
-	repo repository.UserRepository
+type UserRepository interface {
+	GetUserByLogin(ctx context.Context, login string) (*model.User, error)
+
+	CreateUser(ctx context.Context, user *model.User) (*model.User, error)
+	GetUserById(ctx context.Context, id string) (*model.User, error)
 }
 
-func NewUserService(repo repository.UserRepository) *UserService {
+type UserService struct {
+	repo UserRepository
+}
+
+func NewUserService(repo UserRepository) *UserService {
 	return &UserService{repo: repo}
 }
 
@@ -36,7 +42,7 @@ func (u *UserService) Login(ctx context.Context, username, password string) (str
 			Username: username,
 			Password: password,
 		}
-		err = u.Register(ctx, user)
+		user, err = u.Register(ctx, user)
 		if err != nil {
 			return "", fmt.Errorf("%s: %w", op, err)
 		}
@@ -53,11 +59,11 @@ func (u *UserService) Login(ctx context.Context, username, password string) (str
 	return jwt, nil
 }
 
-func (u *UserService) Register(ctx context.Context, user *model.User) error {
+func (u *UserService) Register(ctx context.Context, user *model.User) (*model.User, error) {
 	const op = "UserService.Register"
 	hashedPassword, err := utils.HashPassword(user.Password)
 	if err != nil {
-		return cstErrors.InternalError
+		return nil, fmt.Errorf("%s: %w", op, err)
 	}
 	user = &model.User{
 		Username: user.Username,
@@ -67,7 +73,19 @@ func (u *UserService) Register(ctx context.Context, user *model.User) error {
 	}
 	user, err = u.repo.CreateUser(ctx, user)
 	if err != nil {
-		return fmt.Errorf("%s: %w", op, err)
+		return nil, fmt.Errorf("%s: %w", op, err)
 	}
-	return nil
+	return user, nil
+}
+
+func (u *UserService) GetUserBalance(ctx context.Context, userId string) (int, error) {
+	const op = "UserService.GetUserBalance"
+	user, err := u.repo.GetUserById(ctx, userId)
+	if err != nil {
+		if cstErrors.IsCustomError(err) {
+			return 0, err
+		}
+		return 0, fmt.Errorf("%s: %w", op, err)
+	}
+	return user.Balance, nil
 }

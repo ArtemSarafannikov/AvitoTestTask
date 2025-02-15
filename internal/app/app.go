@@ -1,22 +1,25 @@
 package app
 
 import (
-	"fmt"
-	cstErrors "github.com/ArtemSarafannikov/AvitoTestTask/internal/error"
-	"github.com/ArtemSarafannikov/AvitoTestTask/internal/model"
+	"context"
+	"github.com/ArtemSarafannikov/AvitoTestTask/internal/handlers"
+	mwr "github.com/ArtemSarafannikov/AvitoTestTask/internal/middleware"
 	"github.com/ArtemSarafannikov/AvitoTestTask/internal/repository"
 	"github.com/ArtemSarafannikov/AvitoTestTask/internal/service"
 	"github.com/ArtemSarafannikov/AvitoTestTask/internal/utils"
-	"github.com/golang-jwt/jwt/v5"
-	"github.com/labstack/echo-jwt/v4"
 	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v4/middleware"
+	"github.com/labstack/gommon/log"
 	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
 )
 
 type App struct {
-	server             *echo.Echo
-	userService        *service.UserService
-	transactionService *service.TransactionService
+	server  *echo.Echo
+	handler *handlers.Handler
 }
 
 func New() *App {
@@ -26,103 +29,64 @@ func New() *App {
 		panic(err)
 	}
 	userService := service.NewUserService(repo)
-	transcationService := service.NewTransactionService(repo)
+	transactionService := service.NewTransactionService(repo)
 	return &App{
-		server:             s,
-		userService:        userService,
-		transactionService: transcationService,
+		server:  s,
+		handler: handlers.NewHandler(s.Logger, userService, transactionService),
 	}
 }
 
-func (a *App) Run() {
+func (a *App) MustRun() {
+	if err := a.Run(); err != nil {
+		panic(err)
+	}
+}
+
+func (a *App) Run() error {
+	const op = "App.Run"
+
 	a.SetupHandlers()
-	a.server.Logger.Fatal(a.server.Start(":8080"))
+
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+
+	go func() {
+		if err := a.server.Start(":8080"); err != nil && err != http.ErrServerClosed {
+			a.server.Logger.Fatalf("%s: %w", op, err)
+			return
+		}
+	}()
+
+	<-quit
+	a.server.Logger.Infof("%s: %s", op, "Shutting down server...")
+
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer shutdownCancel()
+
+	if err := a.server.Shutdown(shutdownCtx); err != nil {
+		a.server.Logger.Fatalf("%s: %w", op, err)
+		return err
+	}
+
+	a.server.Logger.Infof("%s: %s", op, "graceful shutdown complete")
+	return nil
 }
 
 func (a *App) SetupHandlers() {
-	// TODO: make handlers in other module
-	a.server.POST("/api/auth", a.authHandler)
+	a.server.Use(middleware.Logger())
+	a.server.Use(middleware.Recover())
+	a.server.Logger.SetLevel(log.INFO)
+
+	a.server.POST("/api/auth", a.handler.AuthHandler)
 
 	withAuthGroup := a.server.Group("/api")
 
 	// TODO: make secret key in .env
 	// TODO: replace message to error in response
 	//withAuthGroup.Use(echojwt.JWT([]byte(utils.JWTSecret)))
-	withAuthGroup.Use(JWTMiddleware(utils.JWTSecret))
-	withAuthGroup.Use(AuthMiddleware)
-	withAuthGroup.GET("/info", a.getInfo)
-	withAuthGroup.POST("/sendCoin", a.sendCoin)
-	withAuthGroup.GET("/buy/:item", a.buyItem)
-}
-
-func (a *App) getInfo(ctx echo.Context) error {
-	return ctx.String(http.StatusOK, fmt.Sprintf("Info: %s", ctx.Get("sub").(string)))
-}
-
-func (a *App) sendCoin(ctx echo.Context) error {
-	var req model.SendCoinRequest
-	if err := ctx.Bind(&req); err != nil {
-		// TODO: remake error to struct model
-		return ctx.JSON(http.StatusBadRequest, map[string]string{"errors": cstErrors.BadRequestDataError.Error()})
-	}
-	if err := a.transactionService.SendCoin(ctx.Request().Context(), ctx.Get(utils.UserIdCtxKey).(string), req.ToUser, req.Amount); err != nil {
-		return ctx.JSON(http.StatusBadRequest, map[string]string{"errors": err.Error()})
-	}
-	return ctx.NoContent(http.StatusOK)
-}
-
-func (a *App) buyItem(ctx echo.Context) error {
-	return ctx.String(http.StatusOK, "BuyItem")
-}
-
-func (a *App) authHandler(ctx echo.Context) error {
-	var req model.AuthRequest
-	if err := ctx.Bind(&req); err != nil {
-		return ctx.JSON(http.StatusBadRequest, map[string]string{"error": cstErrors.BadRequestDataError.Error()})
-	}
-
-	token, err := a.userService.Login(ctx.Request().Context(), req.Username, req.Password)
-	if err != nil {
-		return ctx.String(http.StatusUnauthorized, err.Error())
-	}
-	return ctx.String(http.StatusOK, token)
-}
-
-func JWTMiddleware(secret string) echo.MiddlewareFunc {
-	return echojwt.WithConfig(echojwt.Config{
-		SigningKey:  []byte(secret),
-		TokenLookup: "header:Authorization",
-		NewClaimsFunc: func(c echo.Context) jwt.Claims {
-			return jwt.MapClaims{}
-		},
-	})
-}
-
-func AuthMiddleware(next echo.HandlerFunc) echo.HandlerFunc {
-	return func(ctx echo.Context) error {
-		user := ctx.Get("user")
-		invalidAuthError := model.ErrorResponse{Errors: "invalid token"}
-		if user == nil {
-			return ctx.JSON(http.StatusUnauthorized, invalidAuthError)
-		}
-
-		token, ok := user.(*jwt.Token)
-		if !ok {
-			return ctx.JSON(http.StatusUnauthorized, invalidAuthError)
-		}
-
-		claims, ok := token.Claims.(jwt.MapClaims)
-		if !ok {
-			return ctx.JSON(http.StatusUnauthorized, invalidAuthError)
-		}
-
-		userId, ok := claims["sub"].(string)
-		if !ok || userId == "" {
-			return ctx.JSON(http.StatusUnauthorized, invalidAuthError)
-		}
-
-		ctx.Set(utils.UserIdCtxKey, userId)
-
-		return next(ctx)
-	}
+	withAuthGroup.Use(mwr.JWTMiddleware(utils.JWTSecret))
+	withAuthGroup.Use(mwr.AuthMiddleware)
+	withAuthGroup.GET("/info", a.handler.GetInfo)
+	withAuthGroup.POST("/sendCoin", a.handler.SendCoin)
+	withAuthGroup.GET("/buy/:item", a.handler.BuyItem)
 }
