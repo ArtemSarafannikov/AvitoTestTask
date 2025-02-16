@@ -279,3 +279,20 @@ func (r *PostgresRepository) GetInventory(ctx context.Context, userId string) ([
 	}
 	return inventory, nil
 }
+
+func (r *PostgresRepository) CreateMerch(ctx context.Context, merch *model.Merch) (*model.Merch, error) {
+	const op = "postgres.CreateMerch"
+	const query = `INSERT INTO merch(name, price, is_selling)
+					VALUES ($1, $2, $3)
+					RETURNING id, created_at;`
+
+	row := r.db.QueryRowContext(ctx, query, merch.Name, merch.Price, merch.IsSelling)
+	if err := row.Err(); err != nil {
+		return nil, fmt.Errorf("%s: %w", op, err)
+	}
+	if err := row.Scan(&merch.Id,
+		&merch.CreatedAt); err != nil {
+		return nil, fmt.Errorf("%s: %w", op, err)
+	}
+	return merch, nil
+}

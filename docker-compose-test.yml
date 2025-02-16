@@ -1,0 +1,33 @@
+version: "3.3"
+services:
+  tests:
+    build:
+      context: .
+      dockerfile: Dockerfile.test
+    container_name: market_api_test
+    depends_on:
+      - postgres_test
+    environment:
+      CONFIG_PATH: /app/config/test.yaml
+    entrypoint: ["/bin/sh", "-c"]
+    command: ["go test -v ./internal/tests/..."]
+    networks:
+      - market_service_test
+
+  postgres_test:
+    image: postgres:16
+    container_name: market_postgres_test
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: db_market
+    ports:
+      - "5432:5432"
+    networks:
+      - market_service_test
+    volumes:
+      - ./migrations/init.sql:/docker-entrypoint-initdb.d/init.sql
+
+networks:
+  market_service_test:
+    driver: bridge

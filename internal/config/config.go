@@ -4,7 +4,10 @@ import (
 	"flag"
 	"github.com/ilyakaznacheev/cleanenv"
 	"os"
+	"sync"
 )
+
+var once sync.Once
 
 type Config struct {
 	Port    int            `json:"port" env-required:"true"`
@@ -39,7 +42,9 @@ func MustLoad() *Config {
 func fetchConfigPath() string {
 	var res string
 
-	flag.StringVar(&res, "config", "", "config file path")
+	once.Do(func() {
+		flag.StringVar(&res, "config", "", "config file path")
+	})
 	flag.Parse()
 	if res == "" {
 		res = os.Getenv("CONFIG_PATH")

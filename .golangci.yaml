@@ -1,6 +1,6 @@
 run:
-  timeout: 5m               # Максимальное время выполнения линтинга
-  tests: false              # Не анализировать тесты (при необходимости установить true)
+  timeout: 5m
+  tests: true
 
 linters:
   enable:
