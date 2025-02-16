@@ -68,8 +68,7 @@ func (u *UserService) Register(ctx context.Context, user *model.User) (*model.Us
 	user = &model.User{
 		Username: user.Username,
 		Password: hashedPassword,
-		// TODO: make balance is constant or config param
-		Balance: 1000,
+		Balance:  1000,
 	}
 	user, err = u.repo.CreateUser(ctx, user)
 	if err != nil {

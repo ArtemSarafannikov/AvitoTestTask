@@ -1,14 +1,14 @@
 package utils
 
 import (
+	"errors"
 	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/crypto/bcrypt"
+	"os"
 	"time"
 )
 
 const UserIdCtxKey string = "userID"
-
-const JWTSecret = "secret"
 
 func HashPassword(password string) (string, error) {
 	bytes, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
@@ -29,7 +29,10 @@ func GenerateJWT(userId string) (string, error) {
 		"exp": time.Now().Add(24 * time.Hour).Unix(),
 	}
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	// TODO: get jwt secret from .env file
+	JWTSecret, exist := os.LookupEnv("JWT_SECRET")
+	if !exist {
+		return "", errors.New("JWT_SECRET env variable is not set")
+	}
 	signedToken, err := token.SignedString([]byte(JWTSecret))
 	if err != nil {
 		return "", err

@@ -7,7 +7,6 @@ import (
 	mwr "github.com/ArtemSarafannikov/AvitoTestTask/internal/middleware"
 	"github.com/ArtemSarafannikov/AvitoTestTask/internal/repository"
 	"github.com/ArtemSarafannikov/AvitoTestTask/internal/service"
-	"github.com/ArtemSarafannikov/AvitoTestTask/internal/utils"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	"github.com/labstack/gommon/log"
@@ -84,8 +83,11 @@ func (a *App) SetupHandlers() {
 
 	withAuthGroup := a.server.Group("/api")
 
-	// TODO: make secret key in .env
-	withAuthGroup.Use(mwr.JWTMiddleware(utils.JWTSecret))
+	JWTSecret, exist := os.LookupEnv("JWT_SECRET")
+	if !exist {
+		a.server.Logger.Fatal("JWT_SECRET environment variable not set")
+	}
+	withAuthGroup.Use(mwr.JWTMiddleware(JWTSecret))
 	withAuthGroup.Use(mwr.AuthMiddleware)
 	withAuthGroup.GET("/info", a.handler.GetInfo)
 	withAuthGroup.POST("/sendCoin", a.handler.SendCoin)
