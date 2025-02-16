@@ -82,8 +82,6 @@ func (a *App) SetupHandlers() {
 	withAuthGroup := a.server.Group("/api")
 
 	// TODO: make secret key in .env
-	// TODO: replace message to error in response
-	//withAuthGroup.Use(echojwt.JWT([]byte(utils.JWTSecret)))
 	withAuthGroup.Use(mwr.JWTMiddleware(utils.JWTSecret))
 	withAuthGroup.Use(mwr.AuthMiddleware)
 	withAuthGroup.GET("/info", a.handler.GetInfo)

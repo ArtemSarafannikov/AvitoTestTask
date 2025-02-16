@@ -6,6 +6,7 @@ import (
 	"github.com/ArtemSarafannikov/AvitoTestTask/internal/service"
 	"github.com/ArtemSarafannikov/AvitoTestTask/internal/utils"
 	"github.com/labstack/echo/v4"
+	"golang.org/x/sync/errgroup"
 	"net/http"
 )
 
@@ -27,21 +28,33 @@ func (h *Handler) GetInfo(c echo.Context) error {
 	userId := c.Get(utils.UserIdCtxKey).(string)
 	ctx := c.Request().Context()
 
-	var err error
-	coins, err := h.userService.GetUserBalance(ctx, userId)
-	if err != nil {
-		cstErr := cstErrors.GetAndLogCustomError(err, h.logger)
-		errResp := model.ErrorResponse{Errors: cstErr.Error()}
-		return c.JSON(cstErr.(cstErrors.KnownError).Code(), errResp)
-	}
-	inventory, err := h.transactionService.GetInventory(ctx, userId)
-	if err != nil {
-		cstErr := cstErrors.GetAndLogCustomError(err, h.logger)
-		errResp := model.ErrorResponse{Errors: cstErr.Error()}
-		return c.JSON(cstErr.(cstErrors.KnownError).Code(), errResp)
-	}
-	history, err := h.transactionService.GetTransactionsHistory(ctx, userId)
-	if err != nil {
+	var (
+		coins     int
+		inventory []*model.InfoInventory
+		history   *model.CoinHistory
+	)
+
+	eg, ctx := errgroup.WithContext(ctx)
+
+	eg.Go(func() error {
+		var err error
+		coins, err = h.userService.GetUserBalance(ctx, userId)
+		return err
+	})
+
+	eg.Go(func() error {
+		var err error
+		inventory, err = h.transactionService.GetInventory(ctx, userId)
+		return err
+	})
+
+	eg.Go(func() error {
+		var err error
+		history, err = h.transactionService.GetTransactionsHistory(ctx, userId)
+		return err
+	})
+
+	if err := eg.Wait(); err != nil {
 		cstErr := cstErrors.GetAndLogCustomError(err, h.logger)
 		errResp := model.ErrorResponse{Errors: cstErr.Error()}
 		return c.JSON(cstErr.(cstErrors.KnownError).Code(), errResp)
@@ -58,7 +71,6 @@ func (h *Handler) GetInfo(c echo.Context) error {
 func (h *Handler) SendCoin(c echo.Context) error {
 	var req model.SendCoinRequest
 	if err := c.Bind(&req); err != nil {
-		// TODO: remake error to struct model
 		cstErr := cstErrors.GetAndLogCustomError(err, h.logger)
 		errResp := model.ErrorResponse{Errors: cstErr.Error()}
 		return c.JSON(cstErr.(cstErrors.KnownError).Code(), errResp)
