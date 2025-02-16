@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"github.com/ArtemSarafannikov/AvitoTestTask/internal/config"
 	"github.com/ArtemSarafannikov/AvitoTestTask/internal/handlers"
 	mwr "github.com/ArtemSarafannikov/AvitoTestTask/internal/middleware"
 	"github.com/ArtemSarafannikov/AvitoTestTask/internal/repository"
@@ -18,19 +19,21 @@ import (
 )
 
 type App struct {
+	config  *config.Config
 	server  *echo.Echo
 	handler *handlers.Handler
 }
 
-func New() *App {
+func New(config *config.Config) *App {
 	s := echo.New()
-	repo, err := repository.NewPostgresRepository()
+	repo, err := repository.NewPostgresRepository(config.Storage)
 	if err != nil {
 		panic(err)
 	}
 	userService := service.NewUserService(repo)
 	transactionService := service.NewTransactionService(repo)
 	return &App{
+		config:  config,
 		server:  s,
 		handler: handlers.NewHandler(s.Logger, userService, transactionService),
 	}

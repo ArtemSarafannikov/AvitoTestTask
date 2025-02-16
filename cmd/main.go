@@ -2,9 +2,12 @@ package main
 
 import (
 	"github.com/ArtemSarafannikov/AvitoTestTask/internal/app"
+	"github.com/ArtemSarafannikov/AvitoTestTask/internal/config"
 )
 
 func main() {
-	server := app.New()
+	cfg := config.MustLoad()
+
+	server := app.New(cfg)
 	server.MustRun()
 }

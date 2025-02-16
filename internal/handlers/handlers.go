@@ -24,8 +24,17 @@ func NewHandler(logger echo.Logger, userService *service.UserService, transactio
 	}
 }
 
+func (h *Handler) GetResponseError(c echo.Context, err error) error {
+	cstErr := cstErrors.GetAndLogCustomError(err, h.logger)
+	errResp := model.ErrorResponse{Errors: cstErr.Error()}
+	return c.JSON(cstErr.Code(), errResp)
+}
+
 func (h *Handler) GetInfo(c echo.Context) error {
-	userId := c.Get(utils.UserIdCtxKey).(string)
+	userId, ok := c.Get(utils.UserIdCtxKey).(string)
+	if !ok {
+		return h.GetResponseError(c, cstErrors.UnauthorizedError)
+	}
 	ctx := c.Request().Context()
 
 	var (
@@ -55,9 +64,7 @@ func (h *Handler) GetInfo(c echo.Context) error {
 	})
 
 	if err := eg.Wait(); err != nil {
-		cstErr := cstErrors.GetAndLogCustomError(err, h.logger)
-		errResp := model.ErrorResponse{Errors: cstErr.Error()}
-		return c.JSON(cstErr.(cstErrors.KnownError).Code(), errResp)
+		return h.GetResponseError(c, err)
 	}
 
 	resp := model.InfoResponse{
@@ -71,26 +78,29 @@ func (h *Handler) GetInfo(c echo.Context) error {
 func (h *Handler) SendCoin(c echo.Context) error {
 	var req model.SendCoinRequest
 	if err := c.Bind(&req); err != nil {
-		cstErr := cstErrors.GetAndLogCustomError(err, h.logger)
-		errResp := model.ErrorResponse{Errors: cstErr.Error()}
-		return c.JSON(cstErr.(cstErrors.KnownError).Code(), errResp)
+		return h.GetResponseError(c, err)
 	}
-	userId := c.Get(utils.UserIdCtxKey).(string)
+
+	userId, ok := c.Get(utils.UserIdCtxKey).(string)
+	if !ok {
+		return h.GetResponseError(c, cstErrors.UnauthorizedError)
+	}
+
 	if err := h.transactionService.SendCoin(c.Request().Context(), userId, req.ToUser, req.Amount); err != nil {
-		cstErr := cstErrors.GetAndLogCustomError(err, h.logger)
-		errResp := model.ErrorResponse{Errors: cstErr.Error()}
-		return c.JSON(cstErr.(cstErrors.KnownError).Code(), errResp)
+		return h.GetResponseError(c, err)
 	}
 	return c.NoContent(http.StatusOK)
 }
 
 func (h *Handler) BuyItem(c echo.Context) error {
 	itemId := c.Param("item")
-	userId := c.Get(utils.UserIdCtxKey).(string)
+	userId, ok := c.Get(utils.UserIdCtxKey).(string)
+	if !ok {
+		return h.GetResponseError(c, cstErrors.UnauthorizedError)
+	}
+
 	if err := h.transactionService.BuyItem(c.Request().Context(), userId, itemId); err != nil {
-		cstErr := cstErrors.GetAndLogCustomError(err, h.logger)
-		errResp := model.ErrorResponse{Errors: cstErr.Error()}
-		return c.JSON(cstErr.(cstErrors.KnownError).Code(), errResp)
+		return h.GetResponseError(c, err)
 	}
 	return c.NoContent(http.StatusOK)
 }
@@ -98,16 +108,12 @@ func (h *Handler) BuyItem(c echo.Context) error {
 func (h *Handler) AuthHandler(c echo.Context) error {
 	var req model.AuthRequest
 	if err := c.Bind(&req); err != nil {
-		cstErr := cstErrors.GetAndLogCustomError(err, h.logger)
-		errResp := model.ErrorResponse{Errors: cstErr.Error()}
-		return c.JSON(cstErr.(cstErrors.KnownError).Code(), errResp)
+		return h.GetResponseError(c, err)
 	}
 
 	token, err := h.userService.Login(c.Request().Context(), req.Username, req.Password)
 	if err != nil {
-		cstErr := cstErrors.GetAndLogCustomError(err, h.logger)
-		errResp := model.ErrorResponse{Errors: cstErr.Error()}
-		return c.JSON(cstErr.(cstErrors.KnownError).Code(), errResp)
+		return h.GetResponseError(c, err)
 	}
 	response := model.AuthResponse{Token: token}
 	return c.JSON(http.StatusOK, response)

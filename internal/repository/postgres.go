@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"github.com/ArtemSarafannikov/AvitoTestTask/internal/config"
 	cstErrors "github.com/ArtemSarafannikov/AvitoTestTask/internal/error"
 	"github.com/ArtemSarafannikov/AvitoTestTask/internal/model"
 	"github.com/lib/pq"
@@ -14,9 +15,9 @@ type PostgresRepository struct {
 	db *sql.DB
 }
 
-func NewPostgresRepository() (*PostgresRepository, error) {
+func NewPostgresRepository(config config.DatabaseConfig) (*PostgresRepository, error) {
 	conn := fmt.Sprintf("postgres://%s:%s@%s/%s?sslmode=%s",
-		"postgres", "postgres", "localhost:5432", "db_market", "disable")
+		config.User, config.Password, config.Address, config.Name, config.SSLMode)
 	db, err := sql.Open("postgres", conn)
 	if err != nil {
 		return nil, err

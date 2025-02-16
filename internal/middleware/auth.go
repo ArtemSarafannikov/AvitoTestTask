@@ -47,9 +47,7 @@ func JWTMiddleware(secret string) echo.MiddlewareFunc {
 			return jwt.MapClaims{}
 		},
 		ParseTokenFunc: func(c echo.Context, auth string) (interface{}, error) {
-			if strings.HasPrefix(auth, "Bearer ") {
-				auth = strings.TrimPrefix(auth, "Bearer ")
-			}
+			auth = strings.TrimPrefix(auth, "Bearer ")
 			return jwt.Parse(auth, func(token *jwt.Token) (interface{}, error) {
 				return []byte(secret), nil
 			})

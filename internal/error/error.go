@@ -7,6 +7,7 @@ import (
 )
 
 type KnownError interface {
+	Error() string
 	IsKnown() bool
 	Code() int
 }
@@ -33,6 +34,7 @@ var (
 	InternalError             = GenerateError(http.StatusInternalServerError, "Internal server error")
 	NotFoundError             = GenerateError(http.StatusNotFound, "Not found")
 	BadCredentialError        = GenerateError(http.StatusUnauthorized, "Bad credential")
+	UnauthorizedError         = GenerateError(http.StatusUnauthorized, "Authorize to this operation")
 	NoCoinError               = GenerateError(http.StatusBadRequest, "There are not enough coins in the balance for this operation")
 	NoSellingMerchError       = GenerateError(http.StatusBadRequest, "No selling merchant")
 	CantSendCoinYourselfError = GenerateError(http.StatusBadRequest, "Cant send coin to yourself")
@@ -50,13 +52,14 @@ func IsCustomError(err error) bool {
 	return errors.As(err, &knownError)
 }
 
-func GetAndLogCustomError(err error, logger echo.Logger) error {
+func GetAndLogCustomError(err error, logger echo.Logger) KnownError {
 	if err == nil {
 		return nil
 	}
-	if !IsCustomError(err) {
+	knErr, ok := err.(KnownError)
+	if !ok {
 		logger.Error(err)
-		return InternalError
+		return InternalError.(KnownError)
 	}
-	return err
+	return knErr
 }
